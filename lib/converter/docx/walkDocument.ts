@@ -2,10 +2,17 @@ import { bijoyToUnicode, unicodeToBijoy, convertMixedToUnicode } from '../bijoyU
 import { detectEncoding } from '../detectEncoding';
 import JSZip from 'jszip';
 import { parseXml, buildXml } from './zipIO';
-import { callAiCorrection } from '../../ai/aiWorkerClient';
+import { callAiCorrection, parseAiResponse } from '../../ai/aiWorkerClient';
 
 type Direction = 'bijoy-to-unicode' | 'unicode-to-bijoy' | 'auto';
 type AiConfig = { useAi?: boolean; aiProvider?: string; apiKeys?: Record<string, string> };
+
+type AiNodeMeta = {
+  textNodeRef: any;
+  runNodes: any[];
+  rPrNodeRef: any;
+  text: string;
+};
 
 export async function processDocx(zip: JSZip, direction: Direction, aiConfig?: AiConfig): Promise<void> {
   const targetFiles: string[] = [];
@@ -30,30 +37,15 @@ export async function processDocx(zip: JSZip, direction: Direction, aiConfig?: A
     const xmlString = await file.async('string');
     const xmlObj = parseXml(xmlString);
 
-    const pendingAiNodes: { node: any; text: string }[] = [];
+    const pendingAiNodes: AiNodeMeta[] = [];
 
     walkNodes(xmlObj, direction, pendingAiNodes);
 
     if (aiConfig?.useAi && pendingAiNodes.length > 0) {
-      // Process in batches of 30 to avoid overwhelming the prompt size
       const BATCH_SIZE = 30;
       for (let i = 0; i < pendingAiNodes.length; i += BATCH_SIZE) {
         const batch = pendingAiNodes.slice(i, i + BATCH_SIZE);
-        const segments = batch.map(b => b.text);
-        try {
-          const aiResponse = await callAiCorrection(segments, aiConfig.aiProvider!, aiConfig.apiKeys!);
-          // aiResponse should contain @@0@@text@@0@@ @@1@@text@@1@@
-          for (let j = 0; j < batch.length; j++) {
-            const regex = new RegExp(`@@${j}@@([\\s\\S]*?)@@${j}@@`);
-            const match = aiResponse.match(regex);
-            if (match && match[1]) {
-              batch[j].node['#text'] = match[1];
-            }
-          }
-        } catch (error) {
-          console.error("AI correction failed for batch", error);
-          // Fallback to original locally converted text if AI fails
-        }
+        await correctBatch(batch, aiConfig);
       }
     }
 
@@ -62,7 +54,63 @@ export async function processDocx(zip: JSZip, direction: Direction, aiConfig?: A
   }
 }
 
-function walkNodes(nodes: any[], direction: Direction, pendingAiNodes: { node: any; text: string }[]) {
+async function correctBatch(batch: AiNodeMeta[], aiConfig: AiConfig): Promise<void> {
+  if (batch.length === 0) return;
+  
+  const segments = batch.map(b => b.text);
+  let corrected: string[] | null = null;
+  
+  try {
+    const aiResponse = await callAiCorrection(segments, aiConfig.aiProvider!, aiConfig.apiKeys!);
+    corrected = parseAiResponse(aiResponse, segments.length);
+  } catch (error) {
+    console.error("AI correction failed", error);
+  }
+  
+  if (!corrected) {
+    if (batch.length > 1) {
+      const mid = Math.floor(batch.length / 2);
+      await correctBatch(batch.slice(0, mid), aiConfig);
+      await correctBatch(batch.slice(mid), aiConfig);
+    }
+    return;
+  }
+  
+  for (let i = 0; i < batch.length; i++) {
+    const fixed = corrected[i];
+    const orig = batch[i].text;
+    if (fixed && fixed !== orig) {
+      const meta = batch[i];
+      meta.textNodeRef['#text'] = fixed;
+      
+      // Inject highlight color
+      if (!meta.rPrNodeRef) {
+        const newRPr = { 'w:rPr': [], ':@': {} };
+        meta.runNodes.unshift(newRPr);
+        meta.rPrNodeRef = newRPr['w:rPr'];
+      }
+      
+      // Check if w:highlight already exists
+      let highlightNode = null;
+      for (const prChild of meta.rPrNodeRef) {
+        if (prChild['w:highlight']) {
+          highlightNode = prChild;
+          break;
+        }
+      }
+      
+      if (!highlightNode) {
+        highlightNode = { 'w:highlight': [], ':@': { '@_w:val': 'yellow' } };
+        meta.rPrNodeRef.push(highlightNode);
+      } else {
+        if (!highlightNode[':@']) highlightNode[':@'] = {};
+        highlightNode[':@']['@_w:val'] = 'yellow';
+      }
+    }
+  }
+}
+
+function walkNodes(nodes: any[], direction: Direction, pendingAiNodes: AiNodeMeta[]) {
   if (!Array.isArray(nodes)) return;
 
   for (const node of nodes) {
@@ -83,7 +131,7 @@ function walkNodes(nodes: any[], direction: Direction, pendingAiNodes: { node: a
   }
 }
 
-function processRun(runNodes: any[], direction: Direction, pendingAiNodes: { node: any; text: string }[]) {
+function processRun(runNodes: any[], direction: Direction, pendingAiNodes: AiNodeMeta[]) {
   let textContent = '';
   let textNodeRef: any = null;
   let rPrNodeRef: any = null;
@@ -120,9 +168,6 @@ function processRun(runNodes: any[], direction: Direction, pendingAiNodes: { nod
 
     if (effectiveDirection === 'bijoy-to-unicode') {
       convertedText = convertMixedToUnicode(textContent);
-      if (convertedText.trim().length > 0) {
-        pendingAiNodes.push({ node: textNodeRef, text: convertedText });
-      }
     } else if (effectiveDirection === 'unicode-to-bijoy') {
       convertedText = unicodeToBijoy(textContent);
     }
@@ -157,6 +202,15 @@ function processRun(runNodes: any[], direction: Direction, pendingAiNodes: { nod
       rFontsNodeRef[':@']['@_w:hAnsi'] = fontName;
       rFontsNodeRef[':@']['@_w:cs'] = fontName;
       rFontsNodeRef[':@']['@_w:eastAsia'] = fontName;
+      
+      if (effectiveDirection === 'bijoy-to-unicode' && convertedText.trim().length > 0) {
+        pendingAiNodes.push({
+          textNodeRef,
+          runNodes,
+          rPrNodeRef,
+          text: convertedText
+        });
+      }
     }
   }
 }

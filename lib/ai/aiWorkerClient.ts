@@ -63,3 +63,41 @@ export async function callAiCorrection(
 
   return fullText;
 }
+
+export function parseAiResponse(text: string, numSegments: number): string[] | null {
+  if (!text) return null;
+  // Remove markdown code blocks if the AI includes them
+  const cleanText = text.replace(/^```[a-z]*\n|```$/gm, '').trim();
+  
+  const parsed = new Map<number, string>();
+  // Match @@N@@...@@N@@ or just @@N@@... until the next marker or end of string
+  // Matches the notebook: MARKER_RE = re.compile(r'@@(\d+)@@(.*?)(?=@@\d+@@|\Z)', re.DOTALL)
+  const markerRegex = /@@(\d+)@@([\s\S]*?)(?=@@\d+@@|$)/g;
+  
+  let match;
+  while ((match = markerRegex.exec(cleanText)) !== null) {
+    const id = parseInt(match[1], 10);
+    let content = match[2];
+    
+    // Sometimes the AI might append the closing @@N@@, let's strip it if it's there
+    const closingTag = `@@${id}@@`;
+    if (content.endsWith(closingTag)) {
+      content = content.slice(0, -closingTag.length);
+    }
+    
+    parsed.set(id, content.trim());
+  }
+
+  // Verify we got everything
+  for (let i = 1; i <= numSegments; i++) {
+    if (!parsed.has(i)) {
+      return null;
+    }
+  }
+
+  const results: string[] = [];
+  for (let i = 1; i <= numSegments; i++) {
+    results.push(parsed.get(i)!);
+  }
+  return results;
+}

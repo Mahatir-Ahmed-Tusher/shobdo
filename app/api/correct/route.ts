@@ -32,8 +32,8 @@ export async function POST(req: Request) {
       return new NextResponse('Missing API Key', { status: 400 });
     }
 
-    // Format text with markers
-    const inputFormatted = segments.map((s: string, i: number) => `@@${i}@@${s}@@${i}@@`).join('\n');
+    // Format text with markers (1-based to match python script)
+    const inputFormatted = segments.map((s: string, i: number) => `@@${i+1}@@${s}@@${i+1}@@`).join('\n');
     
     // Check cache
     const cacheKey = hashContent(inputFormatted, provider);

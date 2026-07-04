@@ -106,22 +106,22 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-[#FDFBF7] font-sans text-[#2D2A26]">
       <header className="flex items-center justify-between px-6 py-4 border-b border-[#F2EFE9] bg-[#FCFAF5] sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <img src="/shobdo-logo.webp" alt="Shobdo Logo" className="max-h-28 w-auto object-contain" onError={(e) => e.currentTarget.style.display='none'} />
+          <img src="/shobdo-logo.webp" alt="Shobdo Logo" className="max-h-12 sm:max-h-16 w-auto object-contain" onError={(e) => e.currentTarget.style.display='none'} />
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="hidden sm:flex bg-[#F2EFE9] rounded-lg p-1">
+          <div className="flex bg-[#F2EFE9] rounded-lg p-1">
             <button 
               onClick={() => setMode('file')} 
               className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${mode === 'file' ? 'bg-[#FFFFFF] shadow-sm text-red-600' : 'text-[#8C877D] hover:text-[#2D2A26]'}`}
             >
-              <FileIcon className="w-4 h-4" /> Document
+              <FileIcon className="w-4 h-4" /> <span className="hidden sm:inline">Document</span>
             </button>
             <button 
               onClick={() => setMode('text')} 
               className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${mode === 'text' ? 'bg-[#FFFFFF] shadow-sm text-red-600' : 'text-[#8C877D] hover:text-[#2D2A26]'}`}
             >
-              <Type className="w-4 h-4" /> Text
+              <Type className="w-4 h-4" /> <span className="hidden sm:inline">Text</span>
             </button>
           </div>
           
@@ -129,10 +129,10 @@ export default function Home() {
             href="https://github.com/Mahatir-Ahmed-Tusher/shobdo" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-2 text-sm font-medium text-[#8C877D] hover:text-red-600 transition-colors"
+            className="flex items-center text-[#8C877D] hover:text-red-600 transition-colors"
+            title="Source Code"
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
-            <span>Source Code</span>
+            <img src="https://i.postimg.cc/5y9SGsT3/image.png" alt="GitHub" className="w-6 h-6 object-contain" />
           </a>
 
           <button 
