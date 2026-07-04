@@ -654,11 +654,6 @@ export const correctBijoy = { "&ª": "ª" };
 export const correctUnicode = { "šত্ম": "ন্ত", "¯ত্ম": "স্ত" };
 
 
-
-export bijoyToUnicode = bijoyToUnicode;
-export unicodeToBijoy = unicodeToBijoy;
-export isUnicode = isUnicode;
-export convertMixedToUnicode = convertMixedToUnicode;
 // src/core.ts
 
 let bijoyPatterns = null;
