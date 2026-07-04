@@ -863,7 +863,7 @@ function replaceLastLetter(n, t, i) {
     return n.replace(new RegExp(t + "$", "gm"), i);
 }
 // --- Main Exported Functions ---
-function bijoyToUnicode(text) {
+export function bijoyToUnicode(text) {
     if (!text)
         return "";
     if (isUnicode(text)) {
@@ -881,7 +881,7 @@ function bijoyToUnicode(text) {
     n = ReArrangeUnicodeConvertedText(n);
     return n.replace(/অা/g, "আ");
 }
-function unicodeToBijoy(text) {
+export function unicodeToBijoy(text) {
     if (!text)
         return "";
     let n = text;
@@ -920,11 +920,11 @@ function unicodeToBijoy(text) {
  * Detects if a string contains Unicode Bangla characters.
  * Range: \u0980 to \u09FF
  */
-function isUnicode(text) {
+export function isUnicode(text) {
     const unicodePattern = /[\u0980-\u09FF]/;
     return unicodePattern.test(text);
 }
-function convertMixedToUnicode(text) {
+export function convertMixedToUnicode(text) {
     if (!text)
         return "";
     // Split by spaces to evaluate chunks
