@@ -15,6 +15,7 @@ export function parseXml(xmlString: string): any {
     ignoreAttributes: false,
     preserveOrder: true,
     parseAttributeValue: false,
+    parseTagValue: false,
     trimValues: false,
   });
   return parser.parse(xmlString);
