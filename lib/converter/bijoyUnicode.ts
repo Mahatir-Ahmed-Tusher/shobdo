@@ -656,10 +656,10 @@ export const correctUnicode = { "šত্ম": "ন্ত", "¯ত্ম": "স�
 
 // src/core.ts
 
-let bijoyPatterns = null;
-let uni2bijoyPatterns = null;
+let bijoyPatterns: {regex: RegExp, replacement: string}[] | null = null;
+let uni2bijoyPatterns: {regex: RegExp, replacement: string}[] | null = null;
 // --- Helpers ---
-function buildConversionPatterns(map) {
+function buildConversionPatterns(map: Record<string, string>) {
     const patterns = [];
     for (const key in map) {
         if (Object.prototype.hasOwnProperty.call(map, key)) {
@@ -681,7 +681,7 @@ function ensureUni2BijoyPatterns() {
         uni2bijoyPatterns = buildConversionPatterns(uni2bijoy_string_conversion_map);
     }
 }
-function replaceMultiple(text, map, useRegex) {
+function replaceMultiple(text: string, map: Record<string, string>, useRegex: boolean) {
     let result = text;
     for (const key in map) {
         if (Object.prototype.hasOwnProperty.call(map, key)) {
@@ -692,15 +692,15 @@ function replaceMultiple(text, map, useRegex) {
     return result;
 }
 // --- Bangla Character Checkers ---
-const IsBanglaHalant = (n) => n === "্";
-const IsBanglaPreKar = (n) => ["ি", "ৈ", "ে"].includes(n);
-const IsBanglaPostKar = (n) => ["া", "ো", "ৌ", "ৗ", "ু", "ূ", "ী", "ৃ"].includes(n);
-const IsBanglaKar = (n) => IsBanglaPreKar(n) || IsBanglaPostKar(n);
-const IsBanglaNukta = (n) => ["ং", "ঃ", "ঁ"].includes(n);
-const IsBanglaBanjonborno = (n) => /[ক-হড়-য়ংঃঁৎ]/.test(n);
-const IsSpace = (n) => [" ", "\t", "\n", "\r"].includes(n);
+const IsBanglaHalant = (n: string) => n === "্";
+const IsBanglaPreKar = (n: string) => ["ি", "ৈ", "ে"].includes(n);
+const IsBanglaPostKar = (n: string) => ["া", "ো", "ৌ", "ৗ", "ু", "ূ", "ী", "ৃ"].includes(n);
+const IsBanglaKar = (n: string) => IsBanglaPreKar(n) || IsBanglaPostKar(n);
+const IsBanglaNukta = (n: string) => ["ং", "ঃ", "ঁ"].includes(n);
+const IsBanglaBanjonborno = (n: string) => /[ক-হড়-য়ংঃঁৎ]/.test(n);
+const IsSpace = (n: string) => [" ", "\t", "\n", "\r"].includes(n);
 // --- Core Re-arrangement Logic (The Complex Part) ---
-function ReArrangeUnicodeConvertedText(n) {
+function ReArrangeUnicodeConvertedText(n: string) {
     // Note: Converted logic exactly from original JS, added type safety
     for (let t = 0; t < n.length; t++) {
         // Logic 1: Moving Pre-Kar before Nukta/Kar
@@ -800,7 +800,7 @@ function ReArrangeUnicodeConvertedText(n) {
     }
     return n;
 }
-function ReArrangeUnicodeText(n) {
+function ReArrangeUnicodeText(n: string) {
     let o = 0;
     for (let t = 0; t < n.length; t++) {
         // Logic 1: Moving Pre-Kar
@@ -856,14 +856,14 @@ function ReArrangeUnicodeText(n) {
     }
     return n;
 }
-function replaceFirstLetter(n, t, i) {
+function replaceFirstLetter(n: string, t: string, i: string) {
     return n.replace(new RegExp("^" + t, "gm"), i);
 }
-function replaceLastLetter(n, t, i) {
+function replaceLastLetter(n: string, t: string, i: string) {
     return n.replace(new RegExp(t + "$", "gm"), i);
 }
 // --- Main Exported Functions ---
-export function bijoyToUnicode(text) {
+export function bijoyToUnicode(text: string) {
     if (!text)
         return "";
     if (isUnicode(text)) {
@@ -881,7 +881,7 @@ export function bijoyToUnicode(text) {
     n = ReArrangeUnicodeConvertedText(n);
     return n.replace(/অা/g, "আ");
 }
-export function unicodeToBijoy(text) {
+export function unicodeToBijoy(text: string) {
     if (!text)
         return "";
     let n = text;
@@ -920,16 +920,16 @@ export function unicodeToBijoy(text) {
  * Detects if a string contains Unicode Bangla characters.
  * Range: \u0980 to \u09FF
  */
-export function isUnicode(text) {
+export function isUnicode(text: string) {
     const unicodePattern = /[\u0980-\u09FF]/;
     return unicodePattern.test(text);
 }
-export function convertMixedToUnicode(text) {
+export function convertMixedToUnicode(text: string) {
     if (!text)
         return "";
     // Split by spaces to evaluate chunks
     const words = text.split(/(\s+)/); // Preserves spaces for perfect reconstruction
-    return words.map(word => {
+    return words.map((word: string) => {
         // 1. Skip if it's just whitespace
         if (word.trim().length === 0)
             return word;
