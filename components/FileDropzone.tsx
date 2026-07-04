@@ -1,6 +1,6 @@
 'use client';
-import { useCallback } from 'react';
-import { UploadCloud, FileType2 } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { UploadCloud, File as FileIcon } from 'lucide-react';
 
 interface FileDropzoneProps {
   onFileSelect: (file: File) => void;
@@ -8,56 +8,76 @@ interface FileDropzoneProps {
 }
 
 export default function FileDropzone({ onFileSelect, isProcessing }: FileDropzoneProps) {
-  const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     if (isProcessing) return;
     
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      if (file.name.endsWith('.docx')) {
-        onFileSelect(file);
-      } else {
-        alert('Please drop a .docx file.');
-      }
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.docx')) {
+      setSelectedFile(file);
+    } else {
+      alert('Please upload a .docx file');
     }
-  }, [onFileSelect, isProcessing]);
+  }, [isProcessing]);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onFileSelect(e.target.files[0]);
+    if (isProcessing) return;
+    
+    const file = e.target.files?.[0];
+    if (file && file.name.endsWith('.docx')) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleConvert = () => {
+    if (selectedFile) {
+      onFileSelect(selectedFile);
     }
   };
 
   return (
-    <div 
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={onDrop}
-      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors
-        ${isProcessing ? 'border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50 opacity-60 cursor-not-allowed' : 'border-blue-300 bg-blue-50/50 hover:bg-blue-50 dark:border-blue-900 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 cursor-pointer'}`}
-    >
-      <input 
-        type="file" 
-        id="file-upload" 
-        accept=".docx" 
-        className="hidden" 
-        onChange={onChange}
-        disabled={isProcessing}
-      />
-      <label htmlFor="file-upload" className={isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'}>
-        <div className="flex flex-col items-center justify-center space-y-4">
-          <div className="p-4 bg-white dark:bg-zinc-800 rounded-full shadow-sm">
-            <UploadCloud className="w-8 h-8 text-blue-500" />
+    <div className="flex flex-col items-center justify-center space-y-4">
+      <div 
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDrop}
+        className={`w-full border-2 border-dashed rounded-xl p-8 text-center transition-colors
+          ${isProcessing ? 'border-[#E6E3DD] bg-[#FCFAF5] opacity-60 cursor-not-allowed' : 'border-[#D6D3CD] bg-[#FDFBF7] hover:bg-[#FFFFFF] cursor-pointer'}`}
+      >
+        <input 
+          type="file" 
+          id="file-upload" 
+          accept=".docx" 
+          className="hidden" 
+          onChange={onChange}
+          disabled={isProcessing}
+        />
+        <label htmlFor="file-upload" className={isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'}>
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="p-4 bg-[#FFFFFF] rounded-full shadow-sm border border-[#F2EFE9]">
+              {selectedFile ? <FileIcon className="w-8 h-8 text-red-600" /> : <UploadCloud className="w-8 h-8 text-[#8C877D]" />}
+            </div>
+            <div>
+              <p className="text-lg font-medium text-[#2D2A26]">
+                {isProcessing ? 'Converting document...' : selectedFile ? selectedFile.name : 'Drop your .docx file here'}
+              </p>
+              <p className="text-sm text-[#8C877D] mt-1">
+                {selectedFile ? 'Ready to convert' : 'or click to browse'}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-lg font-medium">
-              {isProcessing ? 'Converting document...' : 'Drop your .docx file here'}
-            </p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              or click to browse
-            </p>
-          </div>
-        </div>
-      </label>
+        </label>
+      </div>
+
+      {selectedFile && !isProcessing && (
+        <button
+          onClick={handleConvert}
+          className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-sm transition-colors"
+        >
+          Convert Document
+        </button>
+      )}
     </div>
   );
 }

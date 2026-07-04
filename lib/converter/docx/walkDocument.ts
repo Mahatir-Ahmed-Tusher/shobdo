@@ -2,12 +2,12 @@ import { bijoyToUnicode, unicodeToBijoy, convertMixedToUnicode } from '../bijoyU
 import { detectEncoding } from '../detectEncoding';
 import JSZip from 'jszip';
 import { parseXml, buildXml } from './zipIO';
+import { callAiCorrection } from '../../ai/aiWorkerClient';
 
 type Direction = 'bijoy-to-unicode' | 'unicode-to-bijoy' | 'auto';
+type AiConfig = { useAi?: boolean; aiProvider?: string; apiKeys?: Record<string, string> };
 
-export async function processDocx(zip: JSZip, direction: Direction): Promise<void> {
-  // Find all document parts that might contain text
-  // document.xml, header*.xml, footer*.xml, footnotes.xml, endnotes.xml
+export async function processDocx(zip: JSZip, direction: Direction, aiConfig?: AiConfig): Promise<void> {
   const targetFiles: string[] = [];
   zip.folder('word')?.forEach((relativePath, file) => {
     if (
@@ -30,47 +30,66 @@ export async function processDocx(zip: JSZip, direction: Direction): Promise<voi
     const xmlString = await file.async('string');
     const xmlObj = parseXml(xmlString);
 
-    walkNodes(xmlObj, direction);
+    const pendingAiNodes: { node: any; text: string }[] = [];
+
+    walkNodes(xmlObj, direction, pendingAiNodes);
+
+    if (aiConfig?.useAi && pendingAiNodes.length > 0) {
+      // Process in batches of 30 to avoid overwhelming the prompt size
+      const BATCH_SIZE = 30;
+      for (let i = 0; i < pendingAiNodes.length; i += BATCH_SIZE) {
+        const batch = pendingAiNodes.slice(i, i + BATCH_SIZE);
+        const segments = batch.map(b => b.text);
+        try {
+          const aiResponse = await callAiCorrection(segments, aiConfig.aiProvider!, aiConfig.apiKeys!);
+          // aiResponse should contain @@0@@text@@0@@ @@1@@text@@1@@
+          for (let j = 0; j < batch.length; j++) {
+            const regex = new RegExp(`@@${j}@@([\\s\\S]*?)@@${j}@@`);
+            const match = aiResponse.match(regex);
+            if (match && match[1]) {
+              batch[j].node['#text'] = match[1];
+            }
+          }
+        } catch (error) {
+          console.error("AI correction failed for batch", error);
+          // Fallback to original locally converted text if AI fails
+        }
+      }
+    }
 
     const updatedXmlString = buildXml(xmlObj);
     zip.file(filePath, updatedXmlString);
   }
 }
 
-function walkNodes(nodes: any[], direction: Direction) {
+function walkNodes(nodes: any[], direction: Direction, pendingAiNodes: { node: any; text: string }[]) {
   if (!Array.isArray(nodes)) return;
 
   for (const node of nodes) {
-    // If it's a run node <w:r>
     if (node['w:r']) {
-      processRun(node['w:r'], direction);
+      processRun(node['w:r'], direction, pendingAiNodes);
     }
     
-    // Recurse into children
     const keys = Object.keys(node);
     for (const key of keys) {
       if (key !== ':@' && typeof node[key] === 'object' && node[key] !== null) {
         if (Array.isArray(node[key])) {
-          walkNodes(node[key], direction);
+          walkNodes(node[key], direction, pendingAiNodes);
         } else if (Array.isArray(node[key][0])) {
-           walkNodes(node[key], direction);
+           walkNodes(node[key], direction, pendingAiNodes);
         }
       }
     }
   }
 }
 
-function processRun(runNodes: any[], direction: Direction) {
-  // fast-xml-parser with preserveOrder: true represents children as an array of objects
-  // Each object has a single key (the tag name) and its children/value
-  
+function processRun(runNodes: any[], direction: Direction, pendingAiNodes: { node: any; text: string }[]) {
   let textContent = '';
   let textNodeRef: any = null;
   let rPrNodeRef: any = null;
 
   for (const child of runNodes) {
     if (child['w:t']) {
-      // Find the text value
       const tChildren = child['w:t'];
       if (Array.isArray(tChildren)) {
         for (const tChild of tChildren) {
@@ -101,21 +120,17 @@ function processRun(runNodes: any[], direction: Direction) {
 
     if (effectiveDirection === 'bijoy-to-unicode') {
       convertedText = convertMixedToUnicode(textContent);
-      // We could use bijoyToUnicode directly if we're sure it's all bijoy,
-      // but convertMixedToUnicode is safer for mixed English/Bengali lines.
+      if (convertedText.trim().length > 0) {
+        pendingAiNodes.push({ node: textNodeRef, text: convertedText });
+      }
     } else if (effectiveDirection === 'unicode-to-bijoy') {
       convertedText = unicodeToBijoy(textContent);
     }
 
     if (convertedText !== textContent) {
-      // Update text
       textNodeRef['#text'] = convertedText;
 
-      // Update fonts
       if (!rPrNodeRef) {
-        // If there is no run properties node, we should ideally inject one,
-        // but for simplicity we can just let Word use the default style font.
-        // Or inject it: runNodes.unshift({ 'w:rPr': [ ... ] })
         const newRPr = { 'w:rPr': [], ':@': {} };
         runNodes.unshift(newRPr);
         rPrNodeRef = newRPr['w:rPr'];
